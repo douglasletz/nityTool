@@ -54,7 +54,7 @@ app.get("/ethereum/:address", async (req, res) => {
 
         totalSuppy = await contractInstance.totalSupply()
         totalSuppy = parseInt(totalSuppy._hex)
-        tokenURI = await contractInstance.baseURI()
+        tokenURI = await contractInstance.baseTokenURI()
 
         // for (let idx = 1; idx <= totalSuppy; idx++) {
         //     let time1 = new Date()
