@@ -2,9 +2,9 @@ require("dotenv").config()
 var express = require("express")
 var app = express()
 var cors = require("cors")
-const web3 = require("web3")
 const { ethers } = require("ethers")
 const axios = require("axios")
+const asyncPool = require("tiny-async-pool")
 
 var contractInstance
 var metaData = []
@@ -29,16 +29,6 @@ const initContractInstance = (_contractAddress, _contractABI, _provider) => {
     )
 }
 
-/******************* TotalSupply Init ******************************************/
-// const initTotalSupply = async () => {
-//     try {
-//         totalSuppy = await contractInstance.totalSupply()
-//         totalSuppy = parseInt(totalSuppy._hex)
-//     } catch (error) {
-//         console.log(error)
-//     }
-// }
-
 /****************** API Router *************************************************/
 app.get("/ethereum/:address", async (req, res) => {
     let contractAddress = req.params.address
@@ -47,72 +37,42 @@ app.get("/ethereum/:address", async (req, res) => {
 
     try {
         const { data } = await axios.get(contractABIstr)
-        let totalSuppy, tokenURI
-
-        contractABI = data.result
+        let totalSuppy,
+            tokenURI,
+            contractABI = data.result
         initContractInstance(contractAddress, contractABI, provider)
 
-        totalSuppy = await contractInstance.totalSupply()
-        totalSuppy = parseInt(totalSuppy._hex)
-        tokenURI = await contractInstance.baseTokenURI()
+        totalSupply = await contractInstance.totalSupply()
+        totalSupply = parseInt(totalSupply._hex)
 
-        // for (let idx = 1; idx <= totalSuppy; idx++) {
-        //     let time1 = new Date()
+        try {
+            tokenURI = await contractInstance.baseURI()
+        } catch (error) {
+            tokenURI = await contractInstance.baseTokenURI()
+        }
 
-        //     Promise.all([
-        //         axios.get(tokenURI + idx),
-        //         axios.get(tokenURI + idx),
-        //         axios.get(tokenURI + idx),
-        //         axios.get(tokenURI + idx)
-        //     ])
-        //         .then((values) => {
-        //             console.log(values)
-        //         })
-        //         .catch((err) => {
-        //             console.log(err)
-        //         })
-        //     // let { data } =
-        //     // metaData.push({
-        //     //     image: data.image,
-        //     //     name: data.name,
-        //     //     attributes: data.attributes
-        //     // })
-        //     let time2 = new Date()
-        //     console.log(time2 - time1)
-        // }
-        let t1, t2
-        t1 = new Date()
-        Promise.all([
-            axios.get(tokenURI + 1),
-            axios.get(tokenURI + 2),
-            axios.get(tokenURI + 3),
-            axios.get(tokenURI + 4),
-            axios.get(tokenURI + 5),
-            axios.get(tokenURI + 1),
-            axios.get(tokenURI + 2),
-            axios.get(tokenURI + 3),
-            axios.get(tokenURI + 4),
-            axios.get(tokenURI + 5),
-            axios.get(tokenURI + 1),
-            axios.get(tokenURI + 2),
-            axios.get(tokenURI + 3),
-            axios.get(tokenURI + 4),
-            axios.get(tokenURI + 5),
-            axios.get(tokenURI + 1),
-            axios.get(tokenURI + 2),
-            axios.get(tokenURI + 3),
-            axios.get(tokenURI + 4),
-            axios.get(tokenURI + 5)
-        ])
-            .then((values) => {
-                t2 = new Date()
-                console.log(t2 - t1)
-            })
-            .catch((err) => {
-                console.log(err)
-            })
+        let time1 = new Date()
+        let tokenIdxArray = Array.from(
+            { length: totalSupply },
+            (_, index) => index
+        )
 
-        res.send(metaData)
+        let tokenIds = await asyncPool(
+            process.env.asyncPoolLimit,
+            tokenIdxArray,
+            (idx) => contractInstance.tokenByIndex(idx)
+        )
+
+        metaData = await asyncPool(
+            process.env.asyncPoolLimit,
+            tokenIds,
+            (idx) => axios.get(tokenURI + idx)
+        )
+
+        let time2 = new Date()
+        console.log(time2 - time1)
+
+        res.send("OK")
     } catch (error) {
         console.log(error)
     }
@@ -120,6 +80,6 @@ app.get("/ethereum/:address", async (req, res) => {
 
 app.listen(process.env.PORT, () => {
     console.log(
-        "Server is running at http://127.0.0.1/" + process.env.PORT + "/"
+        "Server is running at http://127.0.0.1:" + process.env.PORT + "/"
     )
 })
