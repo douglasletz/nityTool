@@ -5,6 +5,10 @@ var cors = require("cors")
 const { ethers } = require("ethers")
 const axios = require("axios")
 const asyncPool = require("tiny-async-pool")
+const db = require("./db")
+const { metaModel, tokenData } = require("./model")
+const mongoose = require("mongoose")
+const tokenModels = {}
 
 var contractInstance
 var metaData = []
@@ -32,6 +36,18 @@ const initContractInstance = (_contractAddress, _contractABI, _provider) => {
 /****************** API Router *************************************************/
 app.get("/ethereum/:address", async (req, res) => {
     let contractAddress = req.params.address
+
+    let tokenInfo = await tokenData.findOne({ address: contractAddress })
+    if (tokenInfo != undefined) {
+        console.log(
+            `This token is already exist in our database...so it doesn't take a long time to respond data`
+        )
+        const curModel = tokenModels[tokenInfo.token_name]
+        const metadata = await curModel.find({})
+        res.send(metadata)
+        return
+    }
+
     let contractABIstr = `https://api.etherscan.io/api?module=contract&action=getabi&address=${contractAddress}&apikey=Z6GREXDZPPJS48Q3VZDVVYI3WWGBEWAJ7Q`
     let contractABI
 
@@ -44,6 +60,7 @@ app.get("/ethereum/:address", async (req, res) => {
 
         totalSupply = await contractInstance.totalSupply()
         totalSupply = parseInt(totalSupply._hex)
+        // totalSupply = 10
 
         try {
             tokenURI = await contractInstance.baseURI()
@@ -51,7 +68,6 @@ app.get("/ethereum/:address", async (req, res) => {
             tokenURI = await contractInstance.baseTokenURI()
         }
 
-        let time1 = new Date()
         let tokenIdxArray = Array.from(
             { length: totalSupply },
             (_, index) => index
@@ -69,10 +85,31 @@ app.get("/ethereum/:address", async (req, res) => {
             (idx) => axios.get(tokenURI + idx)
         )
 
-        let time2 = new Date()
-        console.log(time2 - time1)
+        metaData = metaData.map((element) => {
+            const { data } = element
+            const res = {}
+            res.name = data.name
+            res.image = data.image
+            res.attributes = data.attributes
+            return res
+        })
 
-        res.send("OK")
+        res.send(metaData)
+
+        // console.log(metaData)
+        const collectionName = await contractInstance.name()
+        try {
+            let newModel = metaModel(collectionName)
+            tokenModels[collectionName] = newModel
+            await newModel.insertMany(metaData)
+            await tokenData.create({
+                token_name: collectionName,
+                address: contractAddress
+            })
+            console.log(`${collectionName} meta is successfully added to DB`)
+        } catch (error) {
+            console.log(error)
+        }
     } catch (error) {
         console.log(error)
     }
