@@ -22,6 +22,7 @@
     "node-cron": "^3.0.0",
     "nodemon": "^2.0.12",
     "tiny-async-pool": "^1.2.0",
+    "vercel": "^23.1.2",
     "web3": "^1.5.2"
   }
 }

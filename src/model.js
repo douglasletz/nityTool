@@ -6,6 +6,7 @@ module.exports.metaModel = (modelName) => {
         new mongoose.Schema({
             name: String,
             image: String,
+            tokenId: Number,
             attributes: []
         })
     )

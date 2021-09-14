@@ -42,7 +42,10 @@ app.get("/ethereum/:address", async (req, res) => {
         console.log(
             `This token is already exist in our database...so it doesn't take a long time to respond data`
         )
-        const curModel = tokenModels[tokenInfo.token_name]
+        const collectionName = tokenInfo.token_name
+        if (tokenModels[collectionName] == undefined)
+            tokenModels[collectionName] = metaModel(collectionName)
+        const curModel = tokenModels[collectionName]
         const metadata = await curModel.find({})
         res.send(metadata)
         return
@@ -85,12 +88,13 @@ app.get("/ethereum/:address", async (req, res) => {
             (idx) => axios.get(tokenURI + idx)
         )
 
-        metaData = metaData.map((element) => {
+        metaData = metaData.map((element, index) => {
             const { data } = element
             const res = {}
             res.name = data.name
             res.image = data.image
             res.attributes = data.attributes
+            res.tokenId = parseInt(tokenIds[index])
             return res
         })
 
@@ -99,9 +103,10 @@ app.get("/ethereum/:address", async (req, res) => {
         // console.log(metaData)
         const collectionName = await contractInstance.name()
         try {
-            let newModel = metaModel(collectionName)
-            tokenModels[collectionName] = newModel
-            await newModel.insertMany(metaData)
+            if (tokenModels[collectionName] == undefined)
+                tokenModels[collectionName] = metaModel(collectionName)
+            const curModel = tokenModels[collectionName]
+            await curModel.insertMany(metaData)
             await tokenData.create({
                 token_name: collectionName,
                 address: contractAddress
